@@ -15,4 +15,4 @@ Eventually I'd like to be able to automate taking action, but for now it just an
 
 Another feature I would like to add is the ability to integrate with git-svn, and to be able to determine that the remote master would get changes if it were pulled from, and to support tracking branches other than master.
 
-Also, detect untracked files.
+Detect untracked files.  Integrate with submodules somehow.
