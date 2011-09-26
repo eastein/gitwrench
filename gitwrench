@@ -100,7 +100,7 @@ def walk_dir(path) :
 		keyword = NAMES[max(analysis.keys())]
 		keyword += ' '*(MAX_NAME - len(keyword))
 		path += ' '*(longest_path - len(path))
-		print '[%s] %s %s' % (keyword, path, ' / '.join(analysis.values()))
+		print '%s %s %s' % (keyword, path, ' / '.join(analysis.values()))
 
 if __name__ == '__main__' :
 	try :
