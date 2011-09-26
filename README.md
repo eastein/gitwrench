@@ -6,8 +6,4 @@ These tools are for streamlining git based workflows that I find useful.
 <A name="toc1-5" title="gitwrench" />
 # gitwrench
 
-Note: these assertions are not yet fully implemented :)
-
-Using the configuration file ~/.gitwrench, this program will look immediately under the specified directories for git repositories and check if they are 'out of sync' between master and origin/master.
-
-For each repository it finds, it will check if uncommitted changes are present (untracked files don't count), if no remote master branch exists, if changes have been committed but not pushed to remote master, and finally (if network is accessible) if any commits on the remote master exist.
+Given a path, find subdirectories that are git repositories and analyze them for push, commit, and remotes status.  Eventually I'd like to be able to automate taking action, but for now it just analyzes working copies.  Another feature I would like to add is the ability to integrate with git-svn, and to be able to determine that the remote master would get changes if it were pulled from, and to support tracking branches other than master.
