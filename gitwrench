@@ -61,14 +61,24 @@ def analyze(path) :
 			raise
 		try :
 			origin_master = getcommit('origin/master')
-		except UnknownBranchException :
-			add_status(LOCAL, 'has no origin/master')
-			raise
 
-		if local_master == origin_master :
-			add_status(OK, 'is not ahead')
-		else :
-			add_status(UNSYNC, 'unpushed')
+			if local_master == origin_master :
+				add_status(OK, 'is not ahead')
+			else :
+				add_status(UNSYNC, 'unpushed (git push)')
+		except UnknownBranchException :
+			try :
+				git_svn = getcommit('git-svn')
+
+				if local_master == git_svn :
+					add_status(OK, 'is not ahead')
+				else :
+					add_status(UNSYNC, 'unpushed (git svn dcommit)')
+			except :
+				add_status(LOCAL, 'has no origin/master or git-svn')
+				raise
+
+
 
 		if repo.is_dirty :
 			add_status(UNCOM, 'dirty')
