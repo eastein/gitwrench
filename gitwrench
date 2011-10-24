@@ -87,11 +87,11 @@ def analyze(path) :
 		origin_master = getcommit('origin/master')
 		remote_master = getremotehead('master')
 
-		if local_master == origin_master and local_master == remote_master:
+		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
-		elif local_master != origin_master and local_master != remote_master:
+		elif local_master != origin_master and origin_master != remote_master:
 			add_status(UNSYNC, 'has diverged (git pull, git push)')
-		elif local_master != remote_master :
+		elif remote_master != origin_master :
 			add_status(UNSYNC, 'is behind (git pull)')
 		else :
 			add_status(UNSYNC, 'is ahead (git push)')
