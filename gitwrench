@@ -5,6 +5,9 @@ import os, os.path
 import subprocess
 import git
 import pprint
+import re
+
+HEADS_EXPR = re.compile('^([0-9a-f]+)\trefs/heads/(.*)$')
 
 class UnknownBranchException(Exception) :
 	pass
@@ -24,6 +27,27 @@ def getcommit(branch) :
 
 	return line1[7:]
 
+def getremotehead(branch) :
+	p = subprocess.Popen(['git', 'ls-remote', '--heads', 'origin'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	out, err = p.communicate()
+	status = p.wait()
+	# TODO handle remote host unavailable / stuff like that well.
+	if status != 0 :
+		raise UnknownGitProblem
+	if err :
+		raise UnknownGitProblem
+
+	heads = {}
+
+	for l in out.split('\n') :
+		m = HEADS_EXPR.match(l)
+		if m :
+			h, b = m.groups(1)
+			heads[b] = h
+	
+	if branch in heads :
+		return heads[branch]
+
 INIT = 3
 LOCAL = 1
 UNSYNC = 2
@@ -33,7 +57,7 @@ UNCOM = 4
 NAMES = {
 	INIT : "initial",
 	LOCAL : "local",
-	UNSYNC : "unsynced",
+	UNSYNC : "unsync",
 	OK : "ok",
 	UNCOM : "uncom"
 }
@@ -54,36 +78,36 @@ def analyze(path) :
 	# TODO check for untracked files
 
 	try :
-		try :
-			local_master = getcommit('master')
-		except :
-			add_status(INIT, 'has no master')
-			raise
-		try :
-			origin_master = getcommit('origin/master')
+		local_master = getcommit('master')
+	except :
+		add_status(INIT, 'has no master')
+		raise
+	try :
+		# TODO option to not check remote git servers (causes slowdown)
+		origin_master = getcommit('origin/master')
+		remote_master = getremotehead('master')
 
-			if local_master == origin_master :
+		if local_master == origin_master and local_master == remote_master:
+			add_status(OK, 'is synchronized')
+		elif local_master != origin_master and local_master != remote_master:
+			add_status(UNSYNC, 'has diverged (git pull, git push)')
+		elif local_master != remote_master :
+			add_status(UNSYNC, 'is behind (git pull)')
+		else :
+			add_status(UNSYNC, 'is ahead (git push)')
+	except UnknownBranchException :
+		try :
+			git_svn = getcommit('git-svn')
+
+			if local_master == git_svn :
 				add_status(OK, 'is not ahead')
 			else :
-				add_status(UNSYNC, 'unpushed (git push)')
-		except UnknownBranchException :
-			try :
-				git_svn = getcommit('git-svn')
+				add_status(UNSYNC, 'unpushed (git svn dcommit)')
+		except :
+			add_status(LOCAL, 'has no origin/master or git-svn')
 
-				if local_master == git_svn :
-					add_status(OK, 'is not ahead')
-				else :
-					add_status(UNSYNC, 'unpushed (git svn dcommit)')
-			except :
-				add_status(LOCAL, 'has no origin/master or git-svn')
-				raise
-
-
-
-		if repo.is_dirty :
-			add_status(UNCOM, 'dirty')
-	except :
-		return status
+	if repo.is_dirty :
+		add_status(UNCOM, 'dirty')
 
 	return status
 
