@@ -81,7 +81,8 @@ def analyze(path) :
 		local_master = getcommit('master')
 	except :
 		add_status(INIT, 'has no master')
-		raise
+		return status
+
 	try :
 		# TODO option to not check remote git servers (causes slowdown)
 		origin_master = getcommit('origin/master')
