@@ -2,6 +2,8 @@
 
 import sys
 import os, os.path
+import time
+import json
 import subprocess
 import git
 import pprint
@@ -27,7 +29,35 @@ def getcommit(branch) :
 
 	return line1[7:]
 
-def getremotehead(branch) :
+def cache_filename() :
+	return os.path.join(os.path.expanduser('~'), '.gitwrench')
+
+def readcache() :
+	try :
+		return json.load(open(cache_filename()))
+	except :
+		return dict()
+
+def writecache(cache) :
+	json.dump(cache, open(cache_filename(), 'w'))
+
+def getremotehead(branch, cache, max_cache_sec=None) :
+	path = os.path.abspath(os.getcwd())
+	ret = None
+	if max_cache_sec is not None and path in cache and branch in cache[path] :
+		ts, hash = cache[path][branch]
+		if time.time() - max_cache_sec < ts :
+			ret = hash
+
+	if ret is None :
+		ret = _getremotehead(branch)
+
+	cache.setdefault(path, dict())
+	cache[path][branch] = (time.time(), ret)
+
+	return ret
+
+def _getremotehead(branch) :
 	p = subprocess.Popen(['git', 'ls-remote', '--heads', 'origin'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	out, err = p.communicate()
 	status = p.wait()
@@ -64,7 +94,7 @@ NAMES = {
 
 MAX_NAME = max([len(n) for n in NAMES.values()])
 
-def analyze(path) :
+def analyze(path, cache, expiry) :
 	os.chdir(path)
 
 	repo = git.repo.Repo('.')
@@ -86,7 +116,7 @@ def analyze(path) :
 	try :
 		# TODO option to not check remote git servers (causes slowdown)
 		origin_master = getcommit('origin/master')
-		remote_master = getremotehead('master')
+		remote_master = getremotehead('master', cache, max_cache_sec=expiry)
 
 		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
@@ -112,7 +142,7 @@ def analyze(path) :
 
 	return status
 
-def walk_dir(path) :
+def walk_dir(path, expiry) :
 	dirs = os.listdir(path)
 	dirs.sort()
 	
@@ -123,12 +153,16 @@ def walk_dir(path) :
 
 	longest_path = 0
 
-	for sp in dirs :
-		p = os.path.join(path, sp)
-		if os.path.isdir(p) and os.path.exists(os.path.join(p, '.git')) :
-			results.append((p, analyze(p)))
-			longest_path = max(longest_path, len(p))
-	
+	cache = readcache()
+	try :
+		for sp in dirs :
+			p = os.path.join(path, sp)
+			if os.path.isdir(p) and os.path.exists(os.path.join(p, '.git')) :
+				results.append((p, analyze(p, cache, expiry)))
+				longest_path = max(longest_path, len(p))
+	finally :
+		writecache(cache)
+
 	results.sort(cmp=cm)
 
 	for path, analysis in results :
@@ -138,10 +172,16 @@ def walk_dir(path) :
 		print '%s %s %s' % (keyword, path, ' / '.join(analysis.values()))
 
 if __name__ == '__main__' :
+	expiry = 600
 	try :
 		p = os.path.abspath(sys.argv[1])
+
+		try :
+			expiry = int(sys.argv[2])
+		except IndexError :
+			pass
 	except :
-		sys.stderr.write('usage: gitwrench [path]\n')
+		sys.stderr.write('usage: gitwrench <path> [seconds_cache_expiry]\n')
 		sys.exit(1)
 
-	walk_dir(p)
+	walk_dir(p, expiry)
