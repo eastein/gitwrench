@@ -41,19 +41,24 @@ def readcache() :
 def writecache(cache) :
 	json.dump(cache, open(cache_filename(), 'w'))
 
-def getremotehead(branch, cache, max_cache_sec=None) :
+def getremotehead(branch, local_head, origin_head, cache, max_cache_sec=None) :
 	path = os.path.abspath(os.getcwd())
 	ret = None
+	# we are using caches and such things exist for this branch
 	if max_cache_sec is not None and path in cache and branch in cache[path] :
-		ts, hash = cache[path][branch]
-		if time.time() - max_cache_sec < ts :
-			ret = hash
+		ts, cached_local_head, cached_origin_head, hash = cache[path][branch]
+		# the local stuff hasn't changed at all
+		if cached_local_head == local_head and cached_origin_head == origin_head :
+			# and it's not expired!
+			if time.time() - max_cache_sec < ts :
+				# then we can use this.
+				ret = hash
 
 	if ret is None :
 		ret = _getremotehead(branch)
 
 	cache.setdefault(path, dict())
-	cache[path][branch] = (time.time(), ret)
+	cache[path][branch] = (time.time(), local_head, origin_head, ret)
 
 	return ret
 
@@ -116,7 +121,7 @@ def analyze(path, cache, expiry) :
 	try :
 		# TODO option to not check remote git servers (causes slowdown)
 		origin_master = getcommit('origin/master')
-		remote_master = getremotehead('master', cache, max_cache_sec=expiry)
+		remote_master = getremotehead('master', local_master, origin_master, cache, max_cache_sec=expiry)
 
 		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
