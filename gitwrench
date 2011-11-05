@@ -68,6 +68,7 @@ def _getremotehead(branch) :
 	status = p.wait()
 	# TODO handle remote host unavailable / stuff like that well.
 	if status != 0 :
+		print 'failed to get remote head in %s' % os.getcwd()
 		raise UnknownGitProblem
 	if err :
 		raise UnknownGitProblem
