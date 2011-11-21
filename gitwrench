@@ -187,7 +187,7 @@ if __name__ == '__main__' :
 		except IndexError :
 			pass
 	except :
-		sys.stderr.write('usage: gitwrench <path> [seconds_cache_expiry]\n')
+		sys.stderr.write('usage: gitwrench <path> [seconds_cache_expiry]\n\n\tDefault cache expiry is 1800.  the cache refers to the remote heads cache that allows gitwrench to check remote repositories\' latest revisions less often.\n')
 		sys.exit(1)
 
 	walk_dir(p, expiry)
