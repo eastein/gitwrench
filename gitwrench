@@ -178,7 +178,7 @@ def walk_dir(path, expiry) :
 		print '%s %s %s' % (keyword, path, ' / '.join(analysis.values()))
 
 if __name__ == '__main__' :
-	expiry = 600
+	expiry = 1800
 	try :
 		p = os.path.abspath(sys.argv[1])
 
