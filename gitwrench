@@ -17,6 +17,9 @@ class UnknownBranchException(Exception) :
 class UnknownGitProblem(Exception) :
 	pass
 
+class NoNetworkOpsException(Exception) :
+	pass
+
 def getcommit(branch) :
 	p = subprocess.Popen(['git', 'log', '-1', branch], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	out, err = p.communicate()
@@ -41,7 +44,7 @@ def readcache() :
 def writecache(cache) :
 	json.dump(cache, open(cache_filename(), 'w'))
 
-def getremotehead(branch, local_head, origin_head, cache, max_cache_sec=None) :
+def getremotehead(branch, local_head, origin_head, cache, max_cache_sec=None, network_ops_ok=True) :
 	path = os.path.abspath(os.getcwd())
 	ret = None
 	# we are using caches and such things exist for this branch
@@ -55,7 +58,10 @@ def getremotehead(branch, local_head, origin_head, cache, max_cache_sec=None) :
 				ret = hash
 
 	if ret is None :
-		ret = _getremotehead(branch)
+		if network_ops_ok :
+			ret = _getremotehead(branch)
+		else :
+			raise NoNetworkOpsException
 
 	cache.setdefault(path, dict())
 	cache[path][branch] = (time.time(), local_head, origin_head, ret)
@@ -100,7 +106,7 @@ NAMES = {
 
 MAX_NAME = max([len(n) for n in NAMES.values()])
 
-def analyze(path, cache, expiry) :
+def analyze(path, cache, expiry, network_ops_ok) :
 	os.chdir(path)
 
 	repo = git.repo.Repo('.')
@@ -122,7 +128,10 @@ def analyze(path, cache, expiry) :
 	try :
 		# TODO option to not check remote git servers (causes slowdown)
 		origin_master = getcommit('origin/master')
-		remote_master = getremotehead('master', local_master, origin_master, cache, max_cache_sec=expiry)
+		try :
+			remote_master = getremotehead('master', local_master, origin_master, cache, max_cache_sec=expiry, network_ops_ok=network_ops_ok)
+		except NoNetworkOpsException :
+			remote_master = origin_master # fake that the data was checked, when it wasn't
 
 		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
@@ -148,7 +157,7 @@ def analyze(path, cache, expiry) :
 
 	return status
 
-def walk_dir(path, expiry) :
+def walk_dir(path, expiry, network_ops_ok=True) :
 	dirs = os.listdir(path)
 	dirs.sort()
 	
@@ -164,7 +173,7 @@ def walk_dir(path, expiry) :
 		for sp in dirs :
 			p = os.path.join(path, sp)
 			if os.path.isdir(p) and os.path.exists(os.path.join(p, '.git')) :
-				results.append((p, analyze(p, cache, expiry)))
+				results.append((p, analyze(p, cache, expiry, network_ops_ok=network_ops_ok)))
 				longest_path = max(longest_path, len(p))
 	finally :
 		writecache(cache)
@@ -179,6 +188,7 @@ def walk_dir(path, expiry) :
 
 if __name__ == '__main__' :
 	expiry = 1800
+	network_ops_ok = True
 	try :
 		p = os.path.abspath(sys.argv[1])
 
@@ -186,8 +196,11 @@ if __name__ == '__main__' :
 			expiry = int(sys.argv[2])
 		except IndexError :
 			pass
+		except ValueError :
+			if sys.argv[2] == "-d" :
+				network_ops_ok = False
 	except :
-		sys.stderr.write('usage: gitwrench <path> [seconds_cache_expiry]\n\n\tDefault cache expiry is 1800.  the cache refers to the remote heads cache that allows gitwrench to check remote repositories\' latest revisions less often.\n')
+		sys.stderr.write('usage: gitwrench <path> [seconds_cache_expiry|-d]\n\n\tDefault cache expiry is 1800.  the cache refers to the remote heads cache that allows gitwrench to check remote repositories\' latest revisions less often.\n\t-d means not to do any remote network calls while checking remote heads; use the cache if it\'s fresh, or assume no change.\n')
 		sys.exit(1)
 
-	walk_dir(p, expiry)
+	walk_dir(p, expiry, network_ops_ok=network_ops_ok)
