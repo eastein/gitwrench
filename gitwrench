@@ -152,7 +152,11 @@ def analyze(path, cache, expiry, network_ops_ok) :
 		except :
 			add_status(LOCAL, 'has no origin/master or git-svn')
 
-	if repo.is_dirty :
+	dirtycheck = repo.is_dirty
+	if callable(dirtycheck) :
+		dirtycheck = dirtycheck()
+
+	if dirtycheck :
 		add_status(UNCOM, 'dirty')
 
 	return status
