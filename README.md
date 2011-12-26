@@ -11,8 +11,11 @@ Given a path, find subdirectories that are git repositories and analyze them for
 <A name="toc2-10" title="To Add" />
 ## To Add
 
-Eventually I'd like to be able to automate taking action, but for now it just analyzes working copies.
-
-Another feature I would like to add is the ability to integrate with git-svn, and to be able to determine that the remote master would get changes if it were pulled from, and to support tracking branches other than master.
-
-Detect untracked files.  Integrate with submodules somehow.
+* automate taking action such as fetches and pulls
+* support tracking branches other than master.
+* Detect untracked files - if git-python is new enough.
+* Integrate with submodules somehow.
+* detect remote head updated status for git-svn
+* work with mercurial
+* work with bazaar
+* work with svn
