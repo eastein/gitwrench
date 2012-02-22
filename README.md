@@ -8,7 +8,13 @@ These tools are for streamlining git based workflows that I find useful.
 
 Given a path, find subdirectories that are git repositories and analyze them for push, commit, and remotes status.
 
-<A name="toc2-10" title="To Add" />
+<A name="toc2-10" title="Dependencies" />
+## Dependencies
+
+* python-git or git-python, depending on your distro
+* http://code.google.com/p/pythonfutures/
+
+<A name="toc2-16" title="To Add" />
 ## To Add
 
 * automate taking action such as fetches and pulls
@@ -18,4 +24,4 @@ Given a path, find subdirectories that are git repositories and analyze them for
 * detect remote head updated status for git-svn
 * work with mercurial
 * work with bazaar
-* work with svn
+* work with svn directly

@@ -8,13 +8,21 @@ import subprocess
 import git
 import pprint
 import re
+from concurrent import futures
 
+CONCURRENCY = 20
 HEADS_EXPR = re.compile('^([0-9a-f]+)\trefs/heads/(.*)$')
 
 class UnknownBranchException(Exception) :
 	pass
 
 class UnknownGitProblem(Exception) :
+	pass
+
+class RemoteNetworkErrorException(Exception) :
+	pass
+
+class EncryptedLinkMITMException(Exception) :
 	pass
 
 class NoNetworkOpsException(Exception) :
@@ -68,15 +76,25 @@ def getremotehead(branch, local_head, origin_head, cache, max_cache_sec=None, ne
 
 	return ret
 
+def all_in(los, s) :
+	return reduce(lambda x,y: x and y, [los_ in s for los_ in los])
+
 def _getremotehead(branch) :
 	p = subprocess.Popen(['git', 'ls-remote', '--heads', 'origin'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 	out, err = p.communicate()
 	status = p.wait()
-	# TODO handle remote host unavailable / stuff like that well.
-	if status != 0 :
-		print 'failed to get remote head in %s' % os.getcwd()
-		raise UnknownGitProblem
-	if err :
+
+	if status != 0 or err :
+		if 'Connection timed out' in err or 'Network is unreachable while accessing' in err or 'Name or service not known' in err or 'Couldn\'t resolve host' in err :
+			raise RemoteNetworkErrorException
+		# the below are fun examples of exactly how I know airline wifi is built by jackholes.
+		if 'Operation now in progress while accessing' in err :
+			raise RemoteNetworkErrorException
+		ssl_problems = ['error: SSL: certificate subject name', 'does not match target host name']
+		if all_in(ssl_problems, out) or all_in(ssl_problems, err) :
+			raise EncryptedLinkMITMException("ssl certificate name mismatch")
+
+		print err
 		raise UnknownGitProblem
 
 	heads = {}
@@ -95,13 +113,15 @@ LOCAL = 1
 UNSYNC = 2
 OK = 0
 UNCOM = 4
+UNK = 5
 
 NAMES = {
 	INIT : "initial",
 	LOCAL : "local",
 	UNSYNC : "unsync",
 	OK : "ok",
-	UNCOM : "uncom"
+	UNCOM : "uncom",
+	UNK : "unknown"
 }
 
 MAX_NAME = max([len(n) for n in NAMES.values()])
@@ -151,7 +171,11 @@ def analyze(path, cache, expiry, network_ops_ok) :
 				add_status(UNSYNC, 'unpushed (git svn dcommit)')
 		except :
 			add_status(LOCAL, 'has no origin/master or git-svn')
-
+	except RemoteNetworkErrorException :
+		add_status(UNK, 'remote inaccessible')
+	except EncryptedLinkMITMException, elme :
+		add_status(UNK, elme.msg())
+	
 	dirtycheck = repo.is_dirty
 	if callable(dirtycheck) :
 		dirtycheck = dirtycheck()
@@ -174,17 +198,25 @@ def walk_dir(path, expiry, network_ops_ok=True) :
 
 	cache = readcache()
 	try :
+		tp = futures.ProcessPoolExecutor(max_workers=CONCURRENCY)
+
 		for sp in dirs :
 			p = os.path.join(path, sp)
 			if os.path.isdir(p) and os.path.exists(os.path.join(p, '.git')) :
-				results.append((p, analyze(p, cache, expiry, network_ops_ok=network_ops_ok)))
+				results.append((p, tp.submit(analyze, p, cache, expiry, network_ops_ok=network_ops_ok)))
 				longest_path = max(longest_path, len(p))
 	finally :
 		writecache(cache)
 
-	results.sort(cmp=cm)
-
+	completed_results = list()
 	for path, analysis in results :
+		completed_results.append((path, analysis.result()))
+
+	del tp
+
+	completed_results.sort(cmp=cm)
+
+	for path, analysis in completed_results :
 		keyword = NAMES[max(analysis.keys())]
 		keyword += ' '*(MAX_NAME - len(keyword))
 		path += ' '*(longest_path - len(path))
