@@ -108,12 +108,12 @@ def _getremotehead(branch) :
 	if branch in heads :
 		return heads[branch]
 
-INIT = 3
-LOCAL = 1
-UNSYNC = 2
-OK = 0
-UNCOM = 4
-UNK = 5
+UNK = 0
+OK = 1
+LOCAL = 2
+UNSYNC = 3
+INIT = 4
+UNCOM = 5
 
 NAMES = {
 	INIT : "initial",
@@ -135,7 +135,7 @@ def analyze(path, cache, expiry, network_ops_ok) :
 
 	def add_status(st, msg) :
 		status.setdefault(st, list())
-		status[st] = msg
+		status[st].append(msg)
 
 	# TODO check for untracked files
 
@@ -151,7 +151,16 @@ def analyze(path, cache, expiry, network_ops_ok) :
 		try :
 			remote_master = getremotehead('master', local_master, origin_master, cache, max_cache_sec=expiry, network_ops_ok=network_ops_ok)
 		except NoNetworkOpsException :
-			remote_master = origin_master # fake that the data was checked, when it wasn't
+			# fake that the data was checked, when it wasn't
+			remote_master = origin_master
+		except RemoteNetworkErrorException :
+			# fake that the data was checked, when it wasn't
+			remote_master = origin_master
+			add_status(UNK, 'remote data may be stale')
+		except EncryptedLinkMITMException, elme :
+			# fake that the data was checked, when it wasn't
+			remote_master = origin_master
+			add_status(UNK, '%s - remote data may be stale' % elme.msg())
 
 		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
@@ -171,10 +180,6 @@ def analyze(path, cache, expiry, network_ops_ok) :
 				add_status(UNSYNC, 'unpushed (git svn dcommit)')
 		except :
 			add_status(LOCAL, 'has no origin/master or git-svn')
-	except RemoteNetworkErrorException :
-		add_status(UNK, 'remote inaccessible')
-	except EncryptedLinkMITMException, elme :
-		add_status(UNK, elme.msg())
 	
 	dirtycheck = repo.is_dirty
 	if callable(dirtycheck) :
@@ -220,7 +225,7 @@ def walk_dir(path, expiry, network_ops_ok=True) :
 		keyword = NAMES[max(analysis.keys())]
 		keyword += ' '*(MAX_NAME - len(keyword))
 		path += ' '*(longest_path - len(path))
-		print '%s %s %s' % (keyword, path, ' / '.join(analysis.values()))
+		print '%s %s %s' % (keyword, path, ' / '.join([', '.join(v) for v in analysis.values()]))
 
 if __name__ == '__main__' :
 	expiry = 1800
