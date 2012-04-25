@@ -85,7 +85,7 @@ def _getremotehead(branch) :
 	status = p.wait()
 
 	if status != 0 or err :
-		if 'Connection timed out' in err or 'Network is unreachable while accessing' in err or 'Name or service not known' in err or 'Couldn\'t resolve host' in err :
+		if 'Connection timed out' in err or 'Network is unreachable while accessing' in err or 'Name or service not known' in err or 'Couldn\'t resolve host' in err or 'The remote end hung up unexpectedly' in err :
 			raise RemoteNetworkErrorException
 		# the below are fun examples of exactly how I know airline wifi is built by jackholes.
 		if 'Operation now in progress while accessing' in err :
