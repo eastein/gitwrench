@@ -1,0 +1,21 @@
+#!/bin/sh
+git fetch upstream
+if [ $? -gt 0 ]
+then
+	echo "Failed to fetch upstream. Perhaps you don't have that remote?"
+	exit 1
+fi
+
+git checkout master
+if [ $? -gt 0 ]
+then
+	echo "Failed to checkout master. Perhaps you don't have that branch?"
+	exit 1
+fi
+
+git rebase upstream/master
+if [ $? -gt 0 ]
+then
+	echo "Failed to rebase upstream/master. Perhaps you don't have that branch or there was a conflict?"
+	exit 1
+fi

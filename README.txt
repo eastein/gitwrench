@@ -6,6 +6,10 @@ These tools are for streamlining git based workflows that I find useful.
 
 Given a path, find subdirectories that are git repositories and analyze them for push, commit, and remotes status.
 
+# git-upstream
+
+Fetch upstream and rebase. Assumes master locally and upstream/master as the new changes to rebase over.
+
 ## Dependencies
 
 * python-git or git-python, depending on your distro
