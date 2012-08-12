@@ -116,6 +116,12 @@ UNSYNC = 3
 INIT = 4
 UNCOM = 5
 
+# DST = desync type
+DST_GB = 0 # git behind
+DST_GA = 1 # git ahead
+DST_GSB = 2 # git-svn behind
+DST_GSA = 3 # git-svn ahead
+
 NAMES = {
 	INIT : "initial",
 	LOCAL : "local",
@@ -133,10 +139,16 @@ def analyze(path, cache, expiry, network_ops_ok) :
 	repo = git.repo.Repo('.')
 
 	status = {}
+	status_additional = {}
 
-	def add_status(st, msg) :
+	def add_status(st, msg, a=None) :
 		status.setdefault(st, list())
 		status[st].append(msg)
+		if a is not None :
+			status_additional.setdefault(st, list())
+			if not isinstance(a, list) :
+				a = [a]
+			status_additional[st] += a
 
 	# TODO check for untracked files
 
@@ -144,7 +156,7 @@ def analyze(path, cache, expiry, network_ops_ok) :
 		local_master = getcommit('master')
 	except :
 		add_status(INIT, 'has no master')
-		return status
+		return status, status_additional
 
 	try :
 		# TODO option to not check remote git servers (causes slowdown)
@@ -166,11 +178,11 @@ def analyze(path, cache, expiry, network_ops_ok) :
 		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
 		elif local_master != origin_master and origin_master != remote_master:
-			add_status(UNSYNC, 'has diverged (git pull, git push)')
+			add_status(UNSYNC, 'has diverged (git pull, git push)', a=[DST_GB, DST_GA])
 		elif remote_master != origin_master :
-			add_status(UNSYNC, 'is behind (git pull)')
+			add_status(UNSYNC, 'is behind (git pull)', a=DST_GB)
 		else :
-			add_status(UNSYNC, 'is ahead (git push)')
+			add_status(UNSYNC, 'is ahead (git push)', a=DST_GA)
 	except UnknownBranchException :
 		try :
 			git_svn = getcommit('git-svn')
@@ -178,7 +190,9 @@ def analyze(path, cache, expiry, network_ops_ok) :
 			if local_master == git_svn :
 				add_status(OK, 'is not ahead')
 			else :
-				add_status(UNSYNC, 'unpushed (git svn dcommit)')
+				add_status(UNSYNC, 'unpushed (git svn dcommit)', a=DST_GSA)
+
+			# TODO check remote SVN head
 		except :
 			add_status(LOCAL, 'has no origin/master or git-svn')
 	
@@ -189,9 +203,13 @@ def analyze(path, cache, expiry, network_ops_ok) :
 	if dirtycheck :
 		add_status(UNCOM, 'dirty')
 
-	return status
+	return status, status_additional
 
-def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY) :
+def executor(path, argv) :
+	os.chdir(path)
+	return path, argv, subprocess.call(argv)
+
+def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY, push=False, pull=False) :
 	dirs = os.listdir(path)
 	dirs.sort()
 	
@@ -216,10 +234,13 @@ def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY) :
 
 	completed_results = list()
 	for path, analysis in results :
-		completed_results.append((path, analysis.result()))
+		completed_results.append(tuple([path] + list(analysis.result())))
 
-	del tp
+	# get additional statuses (usable flags for push/pull needs and base technology)
+	additional_statuses = [(r[0], r[2]) for r in completed_results if r[2]]
 
+	# we only want normal statuses for output.
+	completed_results = [(r[0],r[1]) for r in completed_results]
 	completed_results.sort(cmp=cm)
 
 	for path, analysis in completed_results :
@@ -228,11 +249,41 @@ def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY) :
 		path += ' '*(longest_path - len(path))
 		print '%s %s %s' % (keyword, path, ' / '.join([', '.join(v) for v in analysis.values()]))
 
+	work = list()
+
+	for p, a in additional_statuses :
+		if len(a.keys()) == 1 and UNSYNC in a :
+			if a[UNSYNC] == [DST_GA] and push :
+				work.append(tp.submit(executor, p, ['git', 'push']))
+			elif a[UNSYNC] == [DST_GB] and pull :
+				work.append(tp.submit(executor, p, ['git', 'pull']))
+			elif a[UNSYNC] == [DST_GSA] and push :
+				work.append(tp.submit(executor, p, ['git', 'svn', 'dcommit']))
+			elif a[UNSYNC] == [DST_GSB] and pull :
+				work.append(tp.submit(executor, p, ['git', 'svn', 'rebase']))
+
+	work_outputs = list()
+
+	for w in work :
+		p, argv, rcode = w.result()
+		if rcode != 0 :
+			work_outputs.append('%s $ %s -> FAILED %d' % (p, ' '.join(argv), rcode))
+	del tp
+
+	if work :
+		if not work_outputs :
+			print 'gitwrench: %d remote operation(s) successful.' % len(work)
+		else :
+			for wo in work_outputs :
+				print 'gitwrench: %s' % wo
+
 if __name__ == '__main__' :
 	parser = optparse.OptionParser()
 	parser.add_option('-e', '--expiry', dest='expiry', default=1800, help="Number of seconds to wait before the cached remote heads for a repository are re-checked.")
 	parser.add_option('-n', '--no-network', dest='no_network', default=False, action='store_true', help="When enabled, do not do any network operations.")
 	parser.add_option('-c', '--concurrency', dest='concurrency', default=CONCURRENCY, help="How many simultaneous operations to perform.")
+	parser.add_option('--push', dest='push', action='store_true', default=False, help="Push non-diverged git/git-svn local copies that are ahead to upstream.")
+	parser.add_option('--pull', dest='pull', action='store_true', default=False, help="Pull non-diverged git/git-svn local copies that are behind from upstream.")
 	(options, args) = parser.parse_args()
 
 	try :
@@ -244,4 +295,4 @@ if __name__ == '__main__' :
 	assert expiry >= 0
 	network_ops_ok = not options.no_network
 	
-	walk_dir(p, expiry, network_ops_ok=network_ops_ok)
+	walk_dir(p, expiry, network_ops_ok=network_ops_ok, push=options.push, pull=options.pull)
