@@ -8,6 +8,7 @@ import subprocess
 import git
 import pprint
 import re
+import optparse
 from concurrent import futures
 
 CONCURRENCY = 20
@@ -190,7 +191,7 @@ def analyze(path, cache, expiry, network_ops_ok) :
 
 	return status
 
-def walk_dir(path, expiry, network_ops_ok=True) :
+def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY) :
 	dirs = os.listdir(path)
 	dirs.sort()
 	
@@ -203,7 +204,7 @@ def walk_dir(path, expiry, network_ops_ok=True) :
 
 	cache = readcache()
 	try :
-		tp = futures.ProcessPoolExecutor(max_workers=CONCURRENCY)
+		tp = futures.ProcessPoolExecutor(max_workers=concurrency)
 
 		for sp in dirs :
 			p = os.path.join(path, sp)
@@ -228,20 +229,19 @@ def walk_dir(path, expiry, network_ops_ok=True) :
 		print '%s %s %s' % (keyword, path, ' / '.join([', '.join(v) for v in analysis.values()]))
 
 if __name__ == '__main__' :
-	expiry = 1800
-	network_ops_ok = True
+	parser = optparse.OptionParser()
+	parser.add_option('-e', '--expiry', dest='expiry', default=1800, help="Number of seconds to wait before the cached remote heads for a repository are re-checked.")
+	parser.add_option('-n', '--no-network', dest='no_network', default=False, action='store_true', help="When enabled, do not do any network operations.")
+	parser.add_option('-c', '--concurrency', dest='concurrency', default=CONCURRENCY, help="How many simultaneous operations to perform.")
+	(options, args) = parser.parse_args()
+
 	try :
-		p = os.path.abspath(sys.argv[1])
-
-		try :
-			expiry = int(sys.argv[2])
-		except IndexError :
-			pass
-		except ValueError :
-			if sys.argv[2] == "-d" :
-				network_ops_ok = False
+		p = os.path.abspath(args[0])
 	except :
-		sys.stderr.write('usage: gitwrench <path> [seconds_cache_expiry|-d]\n\n\tDefault cache expiry is 1800.  the cache refers to the remote heads cache that allows gitwrench to check remote repositories\' latest revisions less often.\n\t-d means not to do any remote network calls while checking remote heads; use the cache if it\'s fresh, or assume no change.\n')
-		sys.exit(1)
+		p = os.getcwd()
 
+	expiry = int(options.expiry)
+	assert expiry >= 0
+	network_ops_ok = not options.no_network
+	
 	walk_dir(p, expiry, network_ops_ok=network_ops_ok)
