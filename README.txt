@@ -17,6 +17,8 @@ Fetch upstream and rebase. Assumes master locally and upstream/master as the new
 * python-git or git-python, depending on your distro
 * http://code.google.com/p/pythonfutures/
 
+Or if you're so inclined, you can just install everything in `requirements.pip`.
+
 ## To Add
 
 * support tracking branches other than master.
