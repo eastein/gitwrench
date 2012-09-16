@@ -209,7 +209,7 @@ def executor(path, argv) :
 	os.chdir(path)
 	return path, argv, subprocess.call(argv)
 
-def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY, push=False, pull=False) :
+def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY, push=False, pull=False, summary=False) :
 	dirs = os.listdir(path)
 	dirs.sort()
 	
@@ -268,12 +268,16 @@ def walk_dir(path, expiry, network_ops_ok=True, concurrency=CONCURRENCY, push=Fa
 		p, argv, rcode = w.result()
 		if rcode != 0 :
 			work_outputs.append('%s $ %s -> FAILED %d' % (p, ' '.join(argv), rcode))
+		else :
+			if summary :
+				work_outputs.append("%s $ %s -> SUCCESS" % (p, ' '.join(argv)))
 	del tp
 
 	if work :
 		if not work_outputs :
-			print 'gitwrench: %d remote operation(s) successful.' % len(work)
-		else :
+			print 'gitwrench: all %d remote operation(s) successful.' % len(work)
+
+		if work_outputs :
 			for wo in work_outputs :
 				print 'gitwrench: %s' % wo
 
@@ -284,6 +288,7 @@ if __name__ == '__main__' :
 	parser.add_option('-c', '--concurrency', dest='concurrency', default=CONCURRENCY, help="How many simultaneous operations to perform.")
 	parser.add_option('--push', dest='push', action='store_true', default=False, help="Push non-diverged git/git-svn local copies that are ahead to upstream.")
 	parser.add_option('--pull', dest='pull', action='store_true', default=False, help="Pull non-diverged git/git-svn local copies that are behind from upstream.")
+	parser.add_option('-s', dest='summary', action='store_true', default=True, help="For use with action commands. Summarize actions taken at the end.")
 	(options, args) = parser.parse_args()
 
 	try :
@@ -295,4 +300,4 @@ if __name__ == '__main__' :
 	assert expiry >= 0
 	network_ops_ok = not options.no_network
 	
-	walk_dir(p, expiry, network_ops_ok=network_ops_ok, push=options.push, pull=options.pull)
+	walk_dir(p, expiry, network_ops_ok=network_ops_ok, push=options.push, pull=options.pull, summary=options.summary)
