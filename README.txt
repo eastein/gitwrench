@@ -4,7 +4,9 @@ These tools are for streamlining git based workflows that I find useful.
 
 # gitwrench
 
-Given a path, find subdirectories that are git repositories and analyze them for push, commit, and remotes status.
+Given a path (or working directory), find subdirectories that are git repositories and analyze them for push, commit, and remotes status.  Optionally do pushes and pulls.  Integrates partially with git-svn.  Keep up with what changes everyone's been doing on projects you have clones of.  Don't be running old code!
+
+    "I wrenched my git once. Hurt for a few days." - David
 
 # git-upstream
 
@@ -17,7 +19,6 @@ Fetch upstream and rebase. Assumes master locally and upstream/master as the new
 
 ## To Add
 
-* automate taking action such as fetches and pulls
 * support tracking branches other than master.
 * Detect untracked files - if git-python is new enough.
 * Integrate with submodules somehow.

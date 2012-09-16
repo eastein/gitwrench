@@ -6,23 +6,24 @@ These tools are for streamlining git based workflows that I find useful.
 <A name="toc1-5" title="gitwrench" />
 # gitwrench
 
-Given a path, find subdirectories that are git repositories and analyze them for push, commit, and remotes status.
+Given a path (or working directory), find subdirectories that are git repositories and analyze them for push, commit, and remotes status.  Optionally do pushes and pulls.  Integrates partially with git-svn.  Keep up with what changes everyone's been doing on projects you have clones of.  Don't be running old code!
 
-<A name="toc1-10" title="git-upstream" />
+    "I wrenched my git once. Hurt for a few days." - David
+
+<A name="toc1-12" title="git-upstream" />
 # git-upstream
 
 Fetch upstream and rebase. Assumes master locally and upstream/master as the new changes to rebase over.
 
-<A name="toc2-15" title="Dependencies" />
+<A name="toc2-17" title="Dependencies" />
 ## Dependencies
 
 * python-git or git-python, depending on your distro
 * http://code.google.com/p/pythonfutures/
 
-<A name="toc2-21" title="To Add" />
+<A name="toc2-23" title="To Add" />
 ## To Add
 
-* automate taking action such as fetches and pulls
 * support tracking branches other than master.
 * Detect untracked files - if git-python is new enough.
 * Integrate with submodules somehow.
