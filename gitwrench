@@ -20,6 +20,9 @@ class UnknownBranchException(Exception) :
 class UnknownGitProblem(Exception) :
 	pass
 
+class RemoteRepoMissingException(Exception) :
+	pass
+
 class RemoteNetworkErrorException(Exception) :
 	pass
 
@@ -88,6 +91,8 @@ def _getremotehead(branch) :
 	if status != 0 or err :
 		if 'Connection timed out' in err or 'Network is unreachable while accessing' in err or 'Name or service not known' in err or 'Couldn\'t resolve host' in err or 'The remote end hung up unexpectedly' in err :
 			raise RemoteNetworkErrorException
+		if 'Repository not found.' in err or 'Repository not found.' in out :
+			raise RemoteRepoMissingException
 		# the below are fun examples of exactly how I know airline wifi is built by jackholes.
 		if 'Operation now in progress while accessing' in err :
 			raise RemoteNetworkErrorException
@@ -115,6 +120,7 @@ LOCAL = 2
 UNSYNC = 3
 INIT = 4
 UNCOM = 5
+REMOTEBAD = 6
 
 # DST = desync type
 DST_GB = 0 # git behind
@@ -128,7 +134,8 @@ NAMES = {
 	UNSYNC : "unsync",
 	OK : "ok",
 	UNCOM : "uncom",
-	UNK : "unknown"
+	UNK : "unknown",
+	REMOTEBAD : "remote bad"
 }
 
 MAX_NAME = max([len(n) for n in NAMES.values()])
@@ -174,6 +181,9 @@ def analyze(path, cache, expiry, network_ops_ok) :
 			# fake that the data was checked, when it wasn't
 			remote_master = origin_master
 			add_status(UNK, '%s - remote data may be stale' % elme.msg())
+		except RemoteRepoMissingException, rrme :
+			remote_master = origin_master
+			add_status(REMOTEBAD, "remote said no such repo")
 
 		if local_master == origin_master and origin_master == remote_master:
 			add_status(OK, 'is synchronized')
